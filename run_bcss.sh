@@ -1,0 +1,3 @@
+python 1_train_stage1.py --dataset bcss --trainroot datasets/BCSS-WSSS/train/ --testroot datasets/BCSS-WSSS/test/ --max_epoches 20 --batch_size 64 --gpu 4 --weights ./init_weights/ilsvrc-cls_rna-a1_cls1000_ep-0001.params
+python 2_generate_PM.py --dataroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/BCSS-WSSS/ --dataset bcss --gpu 4 --weights checkpoints/stage1_checkpoint_trained_on_bcss.pth
+python 3_train_stage2.py --dataset bcss --dataroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/BCSS-WSSS/ --batch-size 64 --epochs 30 --Is_GM False --resume init_weights/deeplab-resnet.pth.tar 
