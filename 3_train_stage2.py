@@ -12,7 +12,6 @@ from tool.saver import Saver
 from tool.summaries import TensorboardSummary
 from tool.metrics import Evaluator
 import pandas as pd
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 
 class Trainer(object):
@@ -41,14 +40,8 @@ class Trainer(object):
         self.scheduler = LR_Scheduler(args.lr_scheduler, args.lr,
                                             args.epochs, len(self.train_loader))
 
-        ##  Create ResNet38 and load the weights of Stage 1.
-        import importlib
-        model_stage1 = getattr(importlib.import_module('network.resnet38_cls'), 'Net_CAM')(n_class=4)
-        resume_stage1 = 'checkpoints/stage1_checkpoint_trained_on_'+str(args.dataset)+'.pth'
-        weights_dict = torch.load(resume_stage1, map_location='cpu', weights_only=False)
-        model_stage1.load_state_dict(weights_dict)
-        self.model_stage1 = model_stage1.cuda()
-        self.model_stage1.eval()
+        # Stage1 model will be loaded only when needed (during testing with Gate Mechanism)
+        self.model_stage1 = None
 
         # Using cuda
         if args.cuda:
@@ -98,6 +91,9 @@ class Trainer(object):
             train_loss += loss.item()
             tbar.set_description('Train loss: %.3f' % (train_loss / (i + 1)))
             self.writer.add_scalar('train/total_loss_iter', loss.item(), i + num_img_tr * epoch)
+            
+            # if i == 5:
+            #     break
 
         self.writer.add_scalar('train/total_loss_epoch', train_loss, epoch)
         print('[Epoch: %d, numImages: %5d]' % (epoch, i * self.args.batch_size + image.data.shape[0]))
@@ -145,11 +141,25 @@ class Trainer(object):
                 'optimizer': self.optimizer.state_dict()
             }, 'stage2_checkpoint_trained_on_'+self.args.dataset+'.pth')
     def load_the_best_checkpoint(self):
-        checkpoint = torch.load('checkpoints/stage2_checkpoint_trained_on_'+self.args.dataset+'.pth', map_location='cpu', weights_only=False)
+        # checkpoint = torch.load('checkpoints/stage2_checkpoint_trained_on_'+self.args.dataset+'.pth', map_location='cpu', weights_only=False)
+
+        checkpoint = torch.load(f'{self.args.savepath}/stage2_checkpoint_trained_on_'+self.args.dataset+'.pth', map_location='cpu', weights_only=False)
         self.model.module.load_state_dict(checkpoint['state_dict'], strict=False)
     def test(self, epoch, Is_GM):
         self.load_the_best_checkpoint()
         self.model.eval()
+        
+        # Load Stage1 model only if Gate Mechanism is enabled
+        if Is_GM and self.model_stage1 is None:
+            import importlib
+            model_stage1 = getattr(importlib.import_module('network.resnet38_cls'), 'Net_CAM')(n_class=4)
+            resume_stage1 = f'{self.args.savepath}/stage1_checkpoint_trained_on_'+str(self.args.dataset)+'.pth'
+            weights_dict = torch.load(resume_stage1, map_location='cpu', weights_only=False)
+            model_stage1.load_state_dict(weights_dict)
+            self.model_stage1 = model_stage1.cuda()
+            self.model_stage1.eval()
+            print(f"=> loaded stage1 checkpoint '{resume_stage1}' for Gate Mechanism")
+        
         self.evaluator.reset()
         tbar = tqdm(self.test_loader, desc='\r')
         test_loss = 0.0
@@ -254,6 +264,7 @@ def main():
     parser.add_argument('--nesterov', action='store_true', default=False )
     # cuda, seed and logging
     parser.add_argument('--no-cuda', action='store_true', default=False)
+    parser.add_argument('--gpu', type=int, default=0, help='GPU id to use (e.g., 0 for cuda:0)')
     parser.add_argument('--gpu-ids', type=str, default='0')
     parser.add_argument('--seed', type=int, default=1, metavar='S')
     # checking point
@@ -262,6 +273,15 @@ def main():
     parser.add_argument('--ft', action='store_true', default=False)
     parser.add_argument('--eval-interval', type=int, default=1)
     args = parser.parse_args()
+    
+    if not os.path.exists(args.savepath):
+        os.makedirs(args.savepath)
+    if not os.path.exists(args.csv_dir):
+        os.makedirs(args.csv_dir)
+    
+    # Set CUDA_VISIBLE_DEVICES based on --gpu argument
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     if args.cuda:
         try:
@@ -275,6 +295,7 @@ def main():
         else:
             args.sync_bn = False
     print(args)
+    # epoch = 10
     trainer = Trainer(args)
     for epoch in range(trainer.args.epochs):
         trainer.training(epoch)
