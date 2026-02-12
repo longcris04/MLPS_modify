@@ -20,7 +20,9 @@ class Trainer(object):
     def __init__(self, args):
         self.args = args
         # Define
-        self.csv_dir = args.csv_dir
+        # self.csv_dir = args.csv_dir
+        self.csv_dir = f'./results_{self.args.model}'
+        self.savepath = f'./checkpoints_{self.args.model}'
         self.saver = Saver(args)
         self.summary = TensorboardSummary('logs')
         self.writer = self.summary.create_summary()

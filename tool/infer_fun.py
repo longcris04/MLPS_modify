@@ -14,6 +14,8 @@ from tool import infer_utils
 from tool.GenDataset import Stage1_InferDataset
 from torchvision import transforms
 from tool.gradcam import GradCam
+from tqdm import tqdm
+
 def CVImageToPIL(img):
     img = img[:,:,::-1]
     img = Image.fromarray(np.uint8(img))
@@ -45,7 +47,8 @@ def infer(model, dataroot, n_class, args):
                                 shuffle=False,
                                 num_workers=8,
                                 pin_memory=False)
-    for iter, (img_name, img_list) in enumerate(infer_data_loader):
+    progress_bar = tqdm(infer_data_loader, desc='Testing')
+    for iter, (img_name, img_list) in enumerate(progress_bar):
         img_name = img_name[0]; 
 
         img_path = os.path.join(os.path.join(dataroot,'img'),img_name+'.png')
@@ -112,7 +115,8 @@ def create_pseudo_mask(model, dataroot, fm, savepath, n_class, palette, dataset)
                                 shuffle=False,
                                 num_workers=16,
                                 pin_memory=False)
-    for iter, (img_name, img_list) in enumerate(infer_data_loader):      
+    progress_bar = tqdm(infer_data_loader, desc='Generating Pseudo Masks')
+    for iter, (img_name, img_list) in enumerate(progress_bar):      
         img_name = img_name[0]
         img_path = os.path.join(os.path.join(dataroot,'train','img'),img_name+'.png')
         orig_img = np.asarray(Image.open(img_path))

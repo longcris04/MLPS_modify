@@ -131,6 +131,7 @@ def test_phase(args):
     model = getattr(importlib.import_module(args.network), 'Net_CAM')(n_class=args.n_class)
     model = model.to(device)
     args.weights = os.path.join(args.save_folder, 'stage1_checkpoint_trained_on_'+args.dataset+'.pth')
+    print(f'args.weights: {args.weights}')
     weights_dict = torch.load(args.weights, map_location='cpu')
     model.load_state_dict(weights_dict, strict=False)
     model.eval()
@@ -193,6 +194,8 @@ if __name__ == '__main__':
 
     if not os.path.exists(args.csv_dir):
         os.makedirs(args.csv_dir)
+    if not os.path.exists(args.save_folder):
+        os.makedirs(args.save_folder)
 
 
     train_phase(args)
