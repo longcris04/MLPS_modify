@@ -12,6 +12,8 @@ from tool.saver import Saver
 from tool.summaries import TensorboardSummary
 from tool.metrics import Evaluator
 import pandas as pd
+import segmentation_models_pytorch as smp
+
 
 
 class Trainer(object):
@@ -25,17 +27,22 @@ class Trainer(object):
         kwargs = {'num_workers': args.workers, 'pin_memory': False}
         self.train_loader, self.val_loader, self.test_loader = make_data_loader(args, **kwargs)
         self.nclass = args.n_class
-        model = DeepLab(num_classes=self.nclass,
-                        backbone=args.backbone,
-                        output_stride=args.out_stride,
-                        sync_bn=args.sync_bn,
-                        freeze_bn=args.freeze_bn)
-        train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
-                        {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
-        optimizer = torch.optim.SGD(train_params, momentum=args.momentum,
-                                    weight_decay=args.weight_decay, nesterov=args.nesterov)
+        # model = DeepLab(num_classes=self.nclass,
+        #                 backbone=args.backbone,
+        #                 output_stride=args.out_stride,
+        #                 sync_bn=args.sync_bn,
+        #                 freeze_bn=args.freeze_bn)
+        model2 = smp.PSPNet(encoder_name='timm-resnest101e', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
+        # train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
+        #                 {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
+        # optimizer = torch.optim.SGD(train_params, momentum=args.momentum,
+        #                             weight_decay=args.weight_decay, nesterov=args.nesterov)
+        
+        optimizer2 = torch.optim.SGD(params=model2.parameters(), lr=args.lr, momentum=args.momentum,
+                                    weight_decay=args.weight_decay)
+        self.model2, self.optimizer2 = model2, optimizer2
         self.criterion = SegmentationLosses(weight=None, cuda=args.cuda).build_loss(mode=args.loss_type)
-        self.model, self.optimizer = model, optimizer
+        # self.model, self.optimizer = model, optimizer
         self.evaluator = Evaluator(self.nclass)
         self.scheduler = LR_Scheduler(args.lr_scheduler, args.lr,
                                             args.epochs, len(self.train_loader))
@@ -45,39 +52,53 @@ class Trainer(object):
 
         # Using cuda
         if args.cuda:
-            self.model = torch.nn.DataParallel(self.model, device_ids=self.args.gpu_ids)
-            patch_replication_callback(self.model)
-            self.model = self.model.cuda()
+            # self.model = torch.nn.DataParallel(self.model, device_ids=self.args.gpu_ids)
+            # patch_replication_callback(self.model)
+            # self.model = self.model.cuda()
+            
+            self.model2 = torch.nn.DataParallel(self.model2, device_ids=self.args.gpu_ids)
+            patch_replication_callback(self.model2)
+            self.model2 = self.model2.cuda()
         # Resuming checkpoint
         self.best_pred = 0.0
         if args.resume is not None:
             if not os.path.isfile(args.resume):
                 raise RuntimeError("=> no checkpoint found at '{}')" .format(args.resume))
-            checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
-            if args.cuda:
-                W = checkpoint['state_dict']
-                if not args.ft:
-                    del W['decoder.last_conv.8.weight']
-                    del W['decoder.last_conv.8.bias']
-                self.model.module.load_state_dict(W, strict=False)
-            else:
-                self.model.load_state_dict(checkpoint['state_dict'])
-            if args.ft:
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
+            # checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+            checkpoint2 = torch.load(args.resume, weights_only=True)
+            self.model2.module.load_state_dict(checkpoint2['state_dict'])
+            # if args.cuda:
+            #     W = checkpoint['state_dict']
+            #     if not args.ft:
+            #         del W['decoder.last_conv.8.weight']
+            #         del W['decoder.last_conv.8.bias']
+            #     self.model.module.load_state_dict(W, strict=False)
+            # else:
+            #     self.model.load_state_dict(checkpoint['state_dict'])
+            # if args.ft:
+            #     self.optimizer.load_state_dict(checkpoint['optimizer'])
+            # print("=> loaded checkpoint '{}' ".format(args.resume))
             print("=> loaded checkpoint '{}' ".format(args.resume))
 
     def training(self, epoch):
         train_loss = 0.0
-        self.model.train()
+        # self.model.train()
+        self.model2.train()
         tbar = tqdm(self.train_loader)
         num_img_tr = len(self.train_loader)
         for i, sample in enumerate(tbar):
             image, target, target_a, target_b = sample['image'], sample['label'], sample['label_a'], sample['label_b']
             if self.args.cuda:
                 image, target, target_a, target_b = image.cuda(), target.cuda(), target_a.cuda(), target_b.cuda()
-            self.scheduler(self.optimizer, i, epoch, self.best_pred)
-            self.optimizer.zero_grad()
-            output = self.model(image)
+            self.scheduler(self.optimizer2, i, epoch, self.best_pred)
+            self.optimizer2.zero_grad()
+            
+            # print(f"image shape: {image.shape}, target shape: {target.shape}, target_a shape: {target_a.shape}, target_b shape: {target_b.shape}")
+            # output = self.model(image)
+            output = self.model2(image)
+            
+            # print(f"output shape: {output.shape}")
+            # exit(0)
             one = torch.ones((output.shape[0],1,224,224)).cuda()
             output = torch.cat([output,(100 * one * (target==4).unsqueeze(dim = 1))],dim = 1)
 
@@ -87,7 +108,7 @@ class Trainer(object):
             loss = 0.6*loss_o + 0.2*loss_a + 0.2*loss_b
 
             loss.backward()
-            self.optimizer.step()
+            self.optimizer2.step()
             train_loss += loss.item()
             tbar.set_description('Train loss: %.3f' % (train_loss / (i + 1)))
             self.writer.add_scalar('train/total_loss_iter', loss.item(), i + num_img_tr * epoch)
@@ -100,7 +121,8 @@ class Trainer(object):
         print('Loss: %.3f' % train_loss)
 
     def validation(self, epoch):
-        self.model.eval()
+        # self.model.eval()
+        self.model2.eval()
         self.evaluator.reset()
         tbar = tqdm(self.val_loader, desc='\r')
         test_loss = 0.0
@@ -109,7 +131,8 @@ class Trainer(object):
             if self.args.cuda:
                 image, target = image.cuda(), target.cuda()
             with torch.no_grad():
-                output = self.model(image)
+                # output = self.model(image)
+                output = self.model2(image)
             pred = output.data.cpu().numpy()
             target = target.cpu().numpy()
             pred = np.argmax(pred, axis=1)
@@ -136,18 +159,26 @@ class Trainer(object):
 
         if mIoU > self.best_pred:
             self.best_pred = mIoU
+            # self.saver.save_checkpoint({
+            #     'state_dict': self.model.module.state_dict(),
+            #     'optimizer': self.optimizer.state_dict()
+            # }, 'stage2_checkpoint_trained_on_'+self.args.dataset+'.pth')
+            
+            
             self.saver.save_checkpoint({
-                'state_dict': self.model.module.state_dict(),
-                'optimizer': self.optimizer.state_dict()
+                'state_dict': self.model2.module.state_dict(),
+                'optimizer': self.optimizer2.state_dict()
             }, 'stage2_checkpoint_trained_on_'+self.args.dataset+'.pth')
     def load_the_best_checkpoint(self):
         # checkpoint = torch.load('checkpoints/stage2_checkpoint_trained_on_'+self.args.dataset+'.pth', map_location='cpu', weights_only=False)
-
-        checkpoint = torch.load(f'{self.args.savepath}/stage2_checkpoint_trained_on_'+self.args.dataset+'.pth', map_location='cpu', weights_only=False)
-        self.model.module.load_state_dict(checkpoint['state_dict'], strict=False)
+        checkpoint_path = os.path.join(self.args.savepath, f"stage2_checkpoint_trained_on_{self.args.dataset}.pth")
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        # self.model.module.load_state_dict(checkpoint['state_dict'], strict=False)
+        self.model2.module.load_state_dict(checkpoint['state_dict'], strict=False)
     def test(self, epoch, Is_GM):
         self.load_the_best_checkpoint()
-        self.model.eval()
+        # self.model.eval()
+        self.model2.eval()
         
         # Load Stage1 model only if Gate Mechanism is enabled
         if Is_GM and self.model_stage1 is None:
@@ -168,9 +199,11 @@ class Trainer(object):
             if self.args.cuda:
                 image, target = image.cuda(), target.cuda()
             with torch.no_grad():
-                output = self.model(image)
+                # output = self.model(image)
+                output = self.model2(image)
                 if Is_GM:
-                    output = self.model(image)
+                    # output = self.model(image)
+                    output = self.model2(image)
                     _,y_cls = self.model_stage1.forward_cam(image)
                     y_cls = y_cls.cpu().data
                     pred_cls = (y_cls > 0.1)
@@ -255,7 +288,7 @@ def main():
     parser.add_argument('--n_class', type=int, default=4)
     # training hyper params
     parser.add_argument('--epochs', type=int, default=30, metavar='N')
-    parser.add_argument('--batch-size', type=int, default=20, metavar='N')
+    parser.add_argument('--batch_size', type=int, default=20, metavar='N')
     # optimizer params
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR')
     parser.add_argument('--lr-scheduler', type=str, default='poly',choices=['poly', 'step', 'cos'])
@@ -268,7 +301,8 @@ def main():
     parser.add_argument('--gpu-ids', type=str, default='0')
     parser.add_argument('--seed', type=int, default=1, metavar='S')
     # checking point
-    parser.add_argument('--resume', type=str, default='init_weights/deeplab-resnet.pth.tar')
+    # parser.add_argument('--resume', type=str, default='init_weights/deeplab-resnet.pth.tar')
+    parser.add_argument('--resume', type=str, default=None)
     parser.add_argument('--checkname', type=str, default='deeplab-resnet')
     parser.add_argument('--ft', action='store_true', default=False)
     parser.add_argument('--eval-interval', type=int, default=1)

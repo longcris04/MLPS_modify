@@ -38,7 +38,7 @@ env/
 checkpoints*
 # PyCharm
 .idea/
-
+results*
 # VSCode
 .vscode/
 
