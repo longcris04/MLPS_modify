@@ -32,7 +32,7 @@ class Trainer(object):
         #                 output_stride=args.out_stride,
         #                 sync_bn=args.sync_bn,
         #                 freeze_bn=args.freeze_bn)
-        model2 = smp.PSPNet(encoder_name='timm-resnest101e', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
+        model2 = smp.PSPNet(encoder_name=f'{self.args.model}', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
         # train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
         #                 {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
         # optimizer = torch.optim.SGD(train_params, momentum=args.momentum,
@@ -306,6 +306,7 @@ def main():
     parser.add_argument('--checkname', type=str, default='deeplab-resnet')
     parser.add_argument('--ft', action='store_true', default=False)
     parser.add_argument('--eval-interval', type=int, default=1)
+    parser.add_argument('--model', type=str, default='timm-resnest101e', help='backbone phase 2')
     args = parser.parse_args()
     
     if not os.path.exists(args.savepath):
