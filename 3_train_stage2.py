@@ -309,6 +309,7 @@ def main():
     parser.add_argument('--ft', action='store_true', default=False)
     parser.add_argument('--eval-interval', type=int, default=1)
     parser.add_argument('--model', type=str, default='timm-resnest101e', help='backbone phase 2')
+    parser.add_argument('--num_run', type=int, default=5, help='num of repeated runs')
     args = parser.parse_args()
     
     if not os.path.exists(args.savepath):
@@ -332,12 +333,20 @@ def main():
         else:
             args.sync_bn = False
     print(args)
-    # epoch = 10
-    trainer = Trainer(args)
-    for epoch in range(trainer.args.epochs):
-        trainer.training(epoch)
-        trainer.validation(epoch)
-    trainer.test(epoch, args.Is_GM)
+    
+    seed = 42
+    for i in range(args.num_run):
+        print(f"********** Run {i+1} / {args.num_run} **********")
+        torch.manual_seed(seed)
+        if args.cuda:
+            torch.cuda.manual_seed(seed)
+        seed += 1
+        
+        trainer = Trainer(args)
+        for epoch in range(trainer.args.epochs):
+            trainer.training(epoch)
+            trainer.validation(epoch)
+        trainer.test(epoch, args.Is_GM)
     trainer.writer.close()
 
 if __name__ == "__main__":
