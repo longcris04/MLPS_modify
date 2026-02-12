@@ -35,7 +35,7 @@ env/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
-
+checkpoints*
 # PyCharm
 .idea/
 
