@@ -311,7 +311,8 @@ def main():
     parser.add_argument('--model', type=str, default='timm-resnest101e', help='backbone phase 2')
     parser.add_argument('--num_run', type=int, default=5, help='num of repeated runs')
     args = parser.parse_args()
-    
+    args.savepath = f'./checkpoints_{args.model}'
+    args.csv_dir = f'./results_{args.model}'
     if not os.path.exists(args.savepath):
         os.makedirs(args.savepath)
     if not os.path.exists(args.csv_dir):
