@@ -13,7 +13,7 @@ from tool.summaries import TensorboardSummary
 from tool.metrics import Evaluator
 import pandas as pd
 import segmentation_models_pytorch as smp
-
+from tqdm import tqdm
 
 
 class Trainer(object):
@@ -119,8 +119,8 @@ class Trainer(object):
             #     break
 
         self.writer.add_scalar('train/total_loss_epoch', train_loss, epoch)
-        print('[Epoch: %d, numImages: %5d]' % (epoch, i * self.args.batch_size + image.data.shape[0]))
-        print('Loss: %.3f' % train_loss)
+        # print('[Epoch: %d, numImages: %5d]' % (epoch, i * self.args.batch_size + image.data.shape[0]))
+        # print('Loss: %.3f' % train_loss)
 
     def validation(self, epoch):
         # self.model.eval()
