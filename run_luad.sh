@@ -7,7 +7,8 @@
 
 # python 1_train_stage1.py --dataset luad --trainroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/LUAD-HistoSeg/train/ --testroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/LUAD-HistoSeg/test/ --max_epoches 20 --batch_size 64 --gpu 1 --weights ./init_weights/ilsvrc-cls_rna-a1_cls1000_ep-0001.params
  
-python 3_train_stage2.py --model timm-resnest101e --dataset luad --dataroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
-python 3_train_stage2.py --model mit_b4 --dataset luad --dataroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
-python 3_train_stage2.py --model se_resnet152 --dataset luad --dataroot /mnt/disk1/backup_user/22long.nh/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
+python 3_train_stage2.py --model timm-resnest101e --dataset luad --dataroot /mnt/data/longnh22/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
+python 3_train_stage2.py --model mit_b4 --dataset luad --dataroot /mnt/data/longnh22/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
+python 3_train_stage2.py --model se_resnet152 --dataset luad --dataroot /mnt/data/longnh22/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
+python 3_train_stage2.py --model timm-resnest200e --dataset luad --dataroot /mnt/data/longnh22/WSSS-Tissue/datasets/LUAD-HistoSeg/ --num_run 3
 

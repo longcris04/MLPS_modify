@@ -34,7 +34,8 @@ class Trainer(object):
         #                 output_stride=args.out_stride,
         #                 sync_bn=args.sync_bn,
         #                 freeze_bn=args.freeze_bn)
-        model2 = smp.PSPNet(encoder_name=f'{self.args.model}', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
+        # model2 = smp.PSPNet(encoder_name=f'{self.args.model}', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
+        model2 = smp.DeepLabV3(encoder_name=f'{self.args.model}', encoder_weights='imagenet', in_channels=3, classes=self.nclass)
         # train_params = [{'params': model.get_1x_lr_params(), 'lr': args.lr},
         #                 {'params': model.get_10x_lr_params(), 'lr': args.lr * 10}]
         # optimizer = torch.optim.SGD(train_params, momentum=args.momentum,
@@ -186,7 +187,7 @@ class Trainer(object):
         if Is_GM and self.model_stage1 is None:
             import importlib
             model_stage1 = getattr(importlib.import_module('network.resnet38_cls'), 'Net_CAM')(n_class=4)
-            resume_stage1 = f'{self.args.savepath}/stage1_checkpoint_trained_on_'+str(self.args.dataset)+'.pth'
+            resume_stage1 = f'./checkpoints/stage1_checkpoint_trained_on_'+str(self.args.dataset)+'.pth'
             weights_dict = torch.load(resume_stage1, map_location='cpu', weights_only=False)
             model_stage1.load_state_dict(weights_dict)
             self.model_stage1 = model_stage1.cuda()
@@ -289,7 +290,7 @@ def main():
     parser.add_argument('--loss-type', type=str, default='ce', choices=['ce', 'focal'])
     parser.add_argument('--n_class', type=int, default=4)
     # training hyper params
-    parser.add_argument('--epochs', type=int, default=30, metavar='N')
+    parser.add_argument('-e','--epochs', type=int, default=30, metavar='N')
     parser.add_argument('--batch_size', type=int, default=20, metavar='N')
     # optimizer params
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR')
